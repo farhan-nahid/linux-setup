@@ -23,7 +23,7 @@ sudo apt install -y \
   llvm libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
   libffi-dev liblzma-dev \
   zsh fzf ripgrep fd-find bat eza \
-  fonts-jetbrains-mono fonts-font-awesome
+  fonts-jetbrains-mono fonts-font-awesome libfuse2
 
 # -----------------------------
 # 2. Helpers
@@ -190,6 +190,17 @@ fi
 # Redis Insight (.deb)
 if ! command -v redisinsight >/dev/null 2>&1; then
   install_deb "RedisInsight" "https://github.com/redis/RedisInsight/releases/download/3.2.0/Redis-Insight-linux-amd64.deb"
+fi
+
+# JetBrains Toolbox
+if [ ! -d "$HOME/.local/share/JetBrains/Toolbox" ]; then
+  echo "📥 Installing JetBrains Toolbox..."
+  TBOX_URL=$(curl -s 'https://data.services.jetbrains.com/products/releases?code=TBC&latest=true&type=release' | grep -Po '"linux":\{"link":"\K[^"]+')
+  wget -qO jetbrains-toolbox.tar.gz "$TBOX_URL"
+  mkdir -p jetbrains-toolbox
+  tar -xzf jetbrains-toolbox.tar.gz -C jetbrains-toolbox --strip-components=1
+  ./jetbrains-toolbox/jetbrains-toolbox --install
+  rm -rf jetbrains-toolbox.tar.gz jetbrains-toolbox
 fi
 
 # -----------------------------

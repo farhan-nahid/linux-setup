@@ -32,7 +32,7 @@ graph TD
 ### 💻 Developer Ecosystem
 - **Runtimes**: `pyenv` (Python) and `nvm` (Node.js/npm/pnpm).
 - **Virtualization**: **Docker Desktop** (GUI + Engine + Compose).
-- **IDEs (AI-Native)**: Cursor, Windsurf, Antigravity, Qoder, and VS Code.
+- **IDEs (AI-Native)**: Cursor, Windsurf, Antigravity, Qoder, VS Code, and **JetBrains Toolbox**.
 
 ### 🌐 Apps & Utilities
 - **Browsers**: Chrome, Brave, Zen Browser.
