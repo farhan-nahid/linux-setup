@@ -1,40 +1,32 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-# 🚀 ULTIMATE UNIFIED DEV & ZSH SETUP
+# 🚀 DEVELOPMENT TOOLS & APPLICATIONS SETUP
 # ==============================================================================
-# This script automates the installation of essential development tools and
-# configures a professional Zsh environment.
+# Installs development tools, browsers, IDEs, and communication applications.
+# Run base.sh first before running this script!
 # ==============================================================================
 
-set -e
+set -o pipefail
 
-echo "🚀 Starting Ultimate Unified Setup..."
+echo "🚀 Starting Development Tools & Applications Setup..."
 
-# -----------------------------
-# 1. Update & Base Dependencies
-# -----------------------------
-echo "🔄 Updating system and installing base dependencies..."
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y \
-  build-essential curl wget git unzip zip htop tldr \
-  ca-certificates gnupg lsb-release software-properties-common \
-  libssl-dev zlib1g-dev libreadline-dev libsqlite3-dev \
-  llvm libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
-  libffi-dev liblzma-dev \
-  zsh fzf ripgrep fd-find bat eza \
-  fonts-jetbrains-mono fonts-font-awesome libfuse2
+# Error handling
+trap 'echo "⚠️ Script encountered an error at line $LINENO"' ERR
 
-# -----------------------------
-# 2. Helpers
-# -----------------------------
+mkdir -p ~/.local/share/applications ~/Apps
+
+# =====================================================================
+# HELPER FUNCTIONS
+# =====================================================================
+
 create_desktop_entry() {
   local name=$1
   local exec_path=$2
   local comment=$3
   local desktop_file="$HOME/.local/share/applications/${name,,}.desktop"
 
-  echo "🏷️ Creating desktop entry for $name..."
+  mkdir -p "$HOME/.local/share/applications"
   cat <<EOF > "$desktop_file"
 [Desktop Entry]
 Name=$name
@@ -47,323 +39,240 @@ EOF
   chmod +x "$desktop_file"
 }
 
+install_deb() {
+  local name=$1
+  local url=$2
+  local temp_deb="/tmp/${name,,}.deb"
+  echo "📥 Downloading $name (.deb)..."
+  if wget -O "$temp_deb" "$url" 2>/dev/null; then
+    if sudo apt install -y "$temp_deb" 2>/dev/null; then
+      rm -f "$temp_deb"
+      echo "✅ $name installed"
+      return 0
+    else
+      echo "⚠️ Failed to install $name"
+      rm -f "$temp_deb"
+      return 1
+    fi
+  else
+    echo "⚠️ Failed to download $name"
+    return 1
+  fi
+}
+
 install_appimage() {
   local name=$1
   local url=$2
   local target="$HOME/Apps/${name,,}.AppImage"
   if [ ! -f "$target" ]; then
     echo "📥 Downloading $name..."
-    wget -L "$url" -O "$target" || echo "⚠️ Failed to download $name from $url"
-    if [ -f "$target" ]; then
+    if wget -L "$url" -O "$target" 2>/dev/null; then
       chmod +x "$target"
-      create_desktop_entry "$name" "$target" "$name IDE/Editor"
+      create_desktop_entry "$name" "$target" "$name"
+      echo "✅ $name installed"
+    else
+      echo "⚠️ Failed to download $name"
+      rm -f "$target"
     fi
   fi
 }
 
-# -----------------------------
-# 3. Development Tools
-# -----------------------------
+# =====================================================================
+# 1. DEVELOPMENT TOOLS
+# =====================================================================
 
 # Pyenv
 if [ ! -d "$HOME/.pyenv" ]; then
   echo "🐍 Installing pyenv..."
-  curl https://pyenv.run | bash
-fi
-export PATH="$HOME/.pyenv/bin:$PATH"
-eval "$(pyenv init -)" || true
-
-# Latest Python
-LATEST_PYTHON=$(pyenv install --list | grep -E "^\s*3\.[0-9]+\.[0-9]+$" | tail -1 | xargs)
-if ! pyenv versions | grep -q "$LATEST_PYTHON"; then
-  pyenv install -s $LATEST_PYTHON
-  pyenv global $LATEST_PYTHON
+  curl https://pyenv.run 2>/dev/null | bash 2>/dev/null && echo "✅ Pyenv installed" || echo "⚠️ Failed to install pyenv"
 fi
 
 # NVM + Node
 if [ ! -d "$HOME/.nvm" ]; then
   echo "🟢 Installing Node (via NVM)..."
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-fi
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-if ! command -v node >/dev/null 2>&1; then
-  nvm install node
-  nvm use node
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh 2>/dev/null | bash 2>/dev/null && echo "✅ NVM installed" || echo "⚠️ Failed to install NVM"
 fi
 
-# Docker Desktop (includes Docker Engine and Compose)
+# Docker Desktop
 if ! command -v docker >/dev/null 2>&1; then
   echo "🐳 Installing Docker Desktop..."
-  # Prerequisite: KVM
-  sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager
-  sudo usermod -aG kvm $USER
-
-  # Setting up repo
+  sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager 2>/dev/null
+  
   sudo mkdir -p /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg 2>/dev/null | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-  sudo apt update
-
-  # Download and install Docker Desktop
-  wget -O docker-desktop.deb "https://desktop.docker.com/linux/main/amd64/docker-desktop-x86_64.deb"
-  sudo apt install -y ./docker-desktop.deb
-  rm docker-desktop.deb
+  sudo apt update 2>/dev/null
+  
+  if wget -O docker-desktop.deb "https://desktop.docker.com/linux/main/amd64/docker-desktop-x86_64.deb" 2>/dev/null; then
+    sudo apt install -y ./docker-desktop.deb 2>/dev/null && rm docker-desktop.deb && echo "✅ Docker Desktop installed" || echo "⚠️ Docker Desktop install failed"
+  else
+    echo "⚠️ Failed to download Docker Desktop"
+  fi
+  sudo usermod -aG kvm $USER 2>/dev/null
+else
+  echo "✅ Docker already installed"
 fi
 
-# -----------------------------
-# 4. Applications (Browsers/Editors/Terminals/API/Communication)
-# -----------------------------
-echo "🌐 Installing Applications..."
-mkdir -p ~/Apps
+# =====================================================================
+# 3. BROWSERS
+# =====================================================================
+echo "🌐 Installing Browsers..."
 
 # Chrome
 if ! command -v google-chrome >/dev/null 2>&1; then
-  wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-  sudo apt install -y ./google-chrome-stable_current_amd64.deb && rm google-chrome-stable_current_amd64.deb
+  if wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb; then
+    sudo apt install -y ./google-chrome-stable_current_amd64.deb 2>/dev/null && rm google-chrome-stable_current_amd64.deb && echo "✅ Chrome installed" || echo "⚠️ Chrome install failed"
+  else
+    echo "⚠️ Failed to download Chrome"
+  fi
+else
+  echo "✅ Chrome already installed"
 fi
 
 # Brave
 if ! command -v brave-browser >/dev/null 2>&1; then
-  sudo curl -fsSLo /usr/share/keyrings/brave-browser.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
-  echo "deb [signed-by=/usr/share/keyrings/brave-browser.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" | sudo tee /etc/apt/sources.list.d/brave-browser-release.list
-  sudo apt update && sudo apt install -y brave-browser
+  sudo curl -fsSLo /usr/share/keyrings/brave-browser.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg 2>/dev/null
+  echo "deb [signed-by=/usr/share/keyrings/brave-browser.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" | sudo tee /etc/apt/sources.list.d/brave-browser-release.list > /dev/null
+  sudo apt update 2>/dev/null && sudo apt install -y brave-browser 2>/dev/null && echo "✅ Brave installed" || echo "⚠️ Brave install failed"
+else
+  echo "✅ Brave already installed"
 fi
 
 # VS Code
 if ! command -v code >/dev/null 2>&1; then
-  wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg
-  sudo install -o root -g root -m 644 microsoft.gpg /usr/share/keyrings/
-  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list
-  sudo apt update && sudo apt install -y code && rm microsoft.gpg
+  wget -qO- https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null | gpg --dearmor > microsoft.gpg 2>/dev/null
+  if [ -f microsoft.gpg ]; then
+    sudo install -o root -g root -m 644 microsoft.gpg /usr/share/keyrings/ 2>/dev/null
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
+    sudo apt update 2>/dev/null && sudo apt install -y code 2>/dev/null && echo "✅ VS Code installed" || echo "⚠️ VS Code install failed"
+    rm -f microsoft.gpg
+  fi
+else
+  echo "✅ VS Code already installed"
 fi
 
-# Helper: Install DEB from URL
-install_deb() {
-  local name=$1
-  local url=$2
-  local temp_deb="/tmp/${name,,}.deb"
-  echo "📥 Downloading $name (.deb)..."
-  wget -O "$temp_deb" "$url"
-  sudo apt install -y "$temp_deb"
-  rm "$temp_deb"
-}
+# =====================================================================
+# 3. API & COMMUNICATION TOOLS
+# =====================================================================
+echo "🔧 Installing API & Communication Tools..."
 
-# API Testing Tools
+# Insomnia
 if ! command -v insomnia >/dev/null 2>&1; then
   echo "📥 Installing Insomnia..."
-  echo "deb [trusted=yes arch=amd64] https://download.konghq.com/insomnia-ubuntu/ default all" | sudo tee /etc/apt/sources.list.d/insomnia.list
-  sudo apt update && sudo apt install -y insomnia
+  echo "deb [trusted=yes arch=amd64] https://download.konghq.com/insomnia-ubuntu/ default all" | sudo tee /etc/apt/sources.list.d/insomnia.list > /dev/null
+  sudo apt update 2>/dev/null && sudo apt install -y insomnia 2>/dev/null && echo "✅ Insomnia installed" || echo "⚠️ Insomnia install failed"
 fi
 
+# Postman
 if [ ! -d "/opt/Postman" ]; then
-  echo "📥 Installing Postman..."
-  wget -O postman.tar.gz "https://dl.pstmn.io/download/latest/linux64"
-  sudo tar -xzf postman.tar.gz -C /opt
-  sudo ln -sf /opt/Postman/Postman /usr/bin/postman
-  rm postman.tar.gz
-  create_desktop_entry "Postman" "/usr/bin/postman" "Postman API Tool"
+  if wget -O postman.tar.gz "https://dl.pstmn.io/download/latest/linux64" 2>/dev/null; then
+    sudo mkdir -p /opt
+    sudo tar -xzf postman.tar.gz -C /opt 2>/dev/null && rm postman.tar.gz
+    sudo ln -sf /opt/Postman/Postman /usr/bin/postman 2>/dev/null
+    create_desktop_entry "Postman" "/usr/bin/postman" "Postman API Tool"
+    echo "✅ Postman installed"
+  else
+    echo "⚠️ Failed to download Postman"
+  fi
 fi
 
 # Requestly
-if ! command -v requestly >/dev/null 2>&1; then
-  echo "📥 Installing Requestly..."
-  wget -O requestly.deb "https://github.com/requestly/requestly-desktop-app/releases/latest/download/requestly-desktop-app.deb"
-  sudo apt install -y ./requestly.deb && rm requestly.deb
+if [ ! -f /usr/bin/requestly ]; then
+  install_deb "Requestly" "https://github.com/requestly/requestly-desktop-app/releases/latest/download/requestly-desktop-app.deb"
 fi
-
-# General Apps
-sudo apt install -y vlc
 
 # AnyDesk
 if ! command -v anydesk >/dev/null 2>&1; then
-  wget -qO - https://keys.anydesk.com/repos/DEB-GPG-KEY | sudo gpg --dearmor -o /etc/apt/keyrings/anydesk.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/anydesk.gpg] http://deb.anydesk.com/ all main" | sudo tee /etc/apt/sources.list.d/anydesk-stable.list
-  sudo apt update && sudo apt install -y anydesk
+  echo "📥 Installing AnyDesk..."
+  wget -qO - https://keys.anydesk.com/repos/DEB-GPG-KEY 2>/dev/null | sudo gpg --dearmor -o /etc/apt/keyrings/anydesk.gpg 2>/dev/null
+  echo "deb [signed-by=/etc/apt/keyrings/anydesk.gpg] http://deb.anydesk.com/ all main" | sudo tee /etc/apt/sources.list.d/anydesk-stable.list > /dev/null
+  sudo apt update 2>/dev/null && sudo apt install -y anydesk 2>/dev/null && echo "✅ AnyDesk installed" || echo "⚠️ AnyDesk install failed"
 fi
 
-# Slack (Snap)
-if ! command -v slack >/dev/null 2>&1; then
-  sudo snap install slack --classic
-fi
+# VLC
+sudo apt install -y vlc 2>/dev/null && echo "✅ VLC installed" || echo "⚠️ VLC install failed"
 
-# Redis Insight (.deb)
+# Redis Insight
 if ! command -v redisinsight >/dev/null 2>&1; then
   install_deb "RedisInsight" "https://github.com/redis/RedisInsight/releases/download/3.2.0/Redis-Insight-linux-amd64.deb"
 fi
 
+# =====================================================================
+# 4. JETBRAINS & SPECIALIZED IDEs
+# =====================================================================
+echo "💻 Installing JetBrains & IDEs..."
+
 # JetBrains Toolbox
 if [ ! -d "$HOME/.local/share/JetBrains/Toolbox" ]; then
   echo "📥 Installing JetBrains Toolbox..."
-  TBOX_URL=$(curl -s 'https://data.services.jetbrains.com/products/releases?code=TBC&latest=true&type=release' | grep -Po '"linux":\{"link":"\K[^"]+')
-  wget -qO jetbrains-toolbox.tar.gz "$TBOX_URL"
-  mkdir -p jetbrains-toolbox
-  tar -xzf jetbrains-toolbox.tar.gz -C jetbrains-toolbox --strip-components=1
-  ./jetbrains-toolbox/jetbrains-toolbox --install
-  rm -rf jetbrains-toolbox.tar.gz jetbrains-toolbox
+  TBOX_URL=$(curl -s 'https://data.services.jetbrains.com/products/releases?code=TBC&latest=true&type=release' 2>/dev/null | grep -Po '"linux":\{"link":"\K[^"]+' || echo "")
+  if [ ! -z "$TBOX_URL" ]; then
+    if wget -qO jetbrains-toolbox.tar.gz "$TBOX_URL" 2>/dev/null; then
+      mkdir -p jetbrains-toolbox
+      tar -xzf jetbrains-toolbox.tar.gz -C jetbrains-toolbox --strip-components=1 2>/dev/null
+      ./jetbrains-toolbox/jetbrains-toolbox --install 2>/dev/null
+      rm -rf jetbrains-toolbox.tar.gz jetbrains-toolbox
+      echo "✅ JetBrains Toolbox installed"
+    else
+      echo "⚠️ Failed to download JetBrains Toolbox"
+    fi
+  else
+    echo "⚠️ Could not find JetBrains Toolbox URL"
+  fi
 fi
 
-# -----------------------------
-# 5. Specialized IDEs (.deb & Repos)
-# -----------------------------
-echo "💻 Configuring Specialized IDEs..."
-
-# Cursor (.deb)
-if ! command -v cursor >/dev/null 2>&1; then
+# Cursor
+if [ ! -f /usr/bin/cursor ]; then
   install_deb "Cursor" "https://downloader.cursor.sh/linux/deb/x64"
 fi
 
-# Windsurf (Repo)
-if ! command -v windsurf >/dev/null 2>&1; then
-  echo "📥 Setting up Windsurf Repository..."
-  wget -qO- "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg" | gpg --dearmor > windsurf-stable.gpg
-  sudo install -D -o root -g root -m 644 windsurf-stable.gpg /etc/apt/keyrings/windsurf-stable.gpg
-  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/windsurf-stable.gpg] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" | sudo tee /etc/apt/sources.list.d/windsurf.list > /dev/null
-  rm -f windsurf-stable.gpg
-  sudo apt update && sudo apt install -y windsurf
+# Windsurf
+if [ ! -f /usr/bin/windsurf ]; then
+  echo "📥 Installing Windsurf..."
+  if wget -qO- "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg" 2>/dev/null | gpg --dearmor > windsurf-stable.gpg; then
+    sudo install -D -o root -g root -m 644 windsurf-stable.gpg /etc/apt/keyrings/windsurf-stable.gpg 2>/dev/null
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/windsurf-stable.gpg] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" | sudo tee /etc/apt/sources.list.d/windsurf.list > /dev/null
+    rm -f windsurf-stable.gpg
+    sudo apt update 2>/dev/null && sudo apt install -y windsurf 2>/dev/null && echo "✅ Windsurf installed" || echo "⚠️ Windsurf install failed"
+  else
+    echo "⚠️ Failed to setup Windsurf"
+  fi
 fi
 
-# Antigravity (Repo)
-if ! command -v antigravity-ai >/dev/null 2>&1; then
-  echo "📥 Setting up Antigravity Repository..."
-  curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/antigravity-repo-key.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/antigravity-repo-key.gpg] https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/ antigravity-debian main" | sudo tee /etc/apt/sources.list.d/antigravity.list > /dev/null
-  sudo apt update && sudo apt install -y antigravity-ai
+# Antigravity
+if [ ! -f /usr/bin/antigravity-ai ]; then
+  echo "📥 Installing Antigravity..."
+  if curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg 2>/dev/null | sudo gpg --dearmor --yes -o /etc/apt/keyrings/antigravity-repo-key.gpg 2>/dev/null; then
+    echo "deb [signed-by=/etc/apt/keyrings/antigravity-repo-key.gpg] https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/ antigravity-debian main" | sudo tee /etc/apt/sources.list.d/antigravity.list > /dev/null
+    sudo apt update 2>/dev/null && sudo apt install -y antigravity-ai 2>/dev/null && echo "✅ Antigravity installed" || echo "⚠️ Antigravity install failed"
+  else
+    echo "⚠️ Failed to setup Antigravity repository"
+  fi
 fi
 
-# Qoder (.deb)
-if ! command -v qoder >/dev/null 2>&1; then
+# Qoder
+if [ ! -f /usr/bin/qoder ]; then
   install_deb "Qoder" "https://download.qoder.com/release/latest/qoder_amd64.deb"
 fi
 
-# Zen Browser (Still AppImage as no official .deb exists)
-mkdir -p ~/Apps
-if [ ! -f ~/Apps/zen.AppImage ]; then
-  install_appimage "Zen" "https://github.com/zen-browser/desktop/releases/latest/download/zen-x86_64.AppImage"
-fi
+# Zen Browser (AppImage)
+install_appimage "Zen" "https://github.com/zen-browser/desktop/releases/latest/download/zen-x86_64.AppImage"
+
+# =====================================================================
+# 5. TERMINALS
+# =====================================================================
+echo "🖥️ Installing Terminals..."
 
 # Terminator
 if ! command -v terminator >/dev/null 2>&1; then
-  sudo apt install -y terminator
+  sudo apt install -y terminator 2>/dev/null && echo "✅ Terminator installed" || echo "⚠️ Terminator install failed"
 fi
 
 # Warp terminal
 if ! command -v warp-terminal >/dev/null 2>&1; then
-  wget https://app.warp.dev/download?package=deb -O warp.deb
-  sudo apt install -y ./warp.deb && rm warp.deb
+  if wget https://app.warp.dev/download?package=deb -O warp.deb 2>/dev/null; then
+    sudo apt install -y ./warp.deb 2>/dev/null && rm warp.deb && echo "✅ Warp installed" || echo "⚠️ Warp install failed"
+  else
+    echo "⚠️ Failed to download Warp"
+  fi
 fi
-
-# -----------------------------
-# 5. GNOME Tweaks & Extensions
-# -----------------------------
-echo "🔧 Configuring GNOME tweaks and extensions..."
-sudo apt install -y gnome-tweaks gnome-shell-extension-manager
-
-# Note: Automatic installation of manual extensions is complex.
-# We will install the manager and tell the user to enable them.
-echo "👉 Extensions to enable in Extension Manager:"
-echo "   - CPU Power Manager"
-echo "   - Internet Speed Monitor"
-echo "   - Just shows memory usage"
-echo "   - Resource Monitor"
-echo "   - Simple monitor"
-
-# -----------------------------
-# 6. Zsh Configuration
-# -----------------------------
-echo "🐚 Configuring Zsh..."
-
-# Set Zsh default shell
-if [ "$SHELL" != "$(which zsh)" ]; then
-  chsh -s $(which zsh)
-fi
-
-# Oh My Zsh
-if [ ! -d "$HOME/.oh-my-zsh" ]; then
-  RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-fi
-
-# Powerlevel10k
-P10K_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
-if [ ! -d "$P10K_DIR" ]; then
-  git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$P10K_DIR"
-  sed -i 's/^ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' ~/.zshrc
-fi
-
-# Plugins
-SUGGESTIONS_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-autosuggestions"
-HI_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting"
-[ ! -d "$SUGGESTIONS_DIR" ] && git clone https://github.com/zsh-users/zsh-autosuggestions "$SUGGESTIONS_DIR"
-[ ! -d "$HI_DIR" ] && git clone https://github.com/zsh-users/zsh-syntax-highlighting "$HI_DIR"
-
-if ! grep -q "zsh-autosuggestions" ~/.zshrc; then
-  sed -i 's/^plugins=(/plugins=(zsh-autosuggestions zsh-syntax-highlighting /' ~/.zshrc
-fi
-
-# Zoxide
-if ! command -v zoxide >/dev/null 2>&1; then
-  curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
-fi
-
-# Custom .zshrc additions
-if ! grep -q "# PRO CONFIG START" ~/.zshrc; then
-cat << 'EOF' >> ~/.zshrc
-
-# -----------------------------
-# PRO CONFIG START
-# -----------------------------
-
-# History
-HISTSIZE=10000
-SAVEHIST=10000
-HISTFILE=~/.zsh_history
-setopt appendhistory
-setopt sharehistory
-setopt hist_ignore_dups
-setopt hist_reduce_blanks
-
-# Navigation
-eval "$(zoxide init zsh)"
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-
-# Keybindings
-bindkey '^[[A' history-search-backward
-bindkey '^[[B' history-search-forward
-
-# Aliases
-alias gs='git status'
-alias gd='git diff'
-alias gc='git commit'
-alias gp='git push'
-alias gl='git pull'
-
-# Modern replacements
-if command -v eza >/dev/null 2>&1; then
-  alias ls='eza --icons --group-directories-first'
-  alias ll='eza -alF --icons --group-directories-first'
-  alias la='eza -a --icons --group-directories-first'
-  alias l='eza -F --icons --group-directories-first'
-  alias tree='eza --tree --icons'
-fi
-
-if command -v batcat >/dev/null 2>&1; then
-  alias cat='batcat'
-elif command -v bat >/dev/null 2>&1; then
-  alias cat='bat'
-fi
-
-[ -x "$(command -v fdfind)" ] && alias fd='fdfind'
-
-alias pi="pnpm i"
-alias pd="pnpm dev"
-
-# -----------------------------
-# PRO CONFIG END
-# -----------------------------
-EOF
-fi
-
-echo "✅ All-in-one setup complete!"
-echo "⚠️ IMPORTANT: Please logout and login again for Docker changes to take effect."
-echo "👉 Restart terminal or run: exec zsh"
-echo "👉 Run: p10k configure"
