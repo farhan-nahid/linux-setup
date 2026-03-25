@@ -93,25 +93,31 @@ if [ ! -d "$HOME/.nvm" ]; then
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh 2>/dev/null | bash 2>/dev/null && echo "✅ NVM installed" || echo "⚠️ Failed to install NVM"
 fi
 
-# Docker Desktop
+# =====================================================================
+# 2. DOCKER
+# =====================================================================
+echo "🐳 Installing Docker..."
+
 if ! command -v docker >/dev/null 2>&1; then
-  echo "🐳 Installing Docker Desktop..."
-  sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager 2>/dev/null
-  
-  sudo mkdir -p /etc/apt/keyrings
+  sudo install -m 0755 -d /etc/apt/keyrings 2>/dev/null
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg 2>/dev/null | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-  sudo apt update 2>/dev/null
-  
-  if wget -O docker-desktop.deb "https://desktop.docker.com/linux/main/amd64/docker-desktop-x86_64.deb" 2>/dev/null; then
-    sudo apt install -y ./docker-desktop.deb 2>/dev/null && rm docker-desktop.deb && echo "✅ Docker Desktop installed" || echo "⚠️ Docker Desktop install failed"
+  sudo chmod a+r /etc/apt/keyrings/docker.gpg 2>/dev/null
+
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+  if sudo apt update 2>/dev/null && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null; then
+    sudo usermod -aG docker "$USER" 2>/dev/null
+    echo "✅ Docker installed"
+    echo "ℹ️ Re-login required for Docker group permissions"
   else
-    echo "⚠️ Failed to download Docker Desktop"
+    echo "⚠️ Docker install failed"
   fi
-  sudo usermod -aG kvm $USER 2>/dev/null
 else
   echo "✅ Docker already installed"
 fi
+
 
 # =====================================================================
 # 3. BROWSERS
@@ -156,12 +162,6 @@ fi
 # =====================================================================
 echo "🔧 Installing API & Communication Tools..."
 
-# Insomnia
-if ! command -v insomnia >/dev/null 2>&1; then
-  echo "📥 Installing Insomnia..."
-  echo "deb [trusted=yes arch=amd64] https://download.konghq.com/insomnia-ubuntu/ default all" | sudo tee /etc/apt/sources.list.d/insomnia.list > /dev/null
-  sudo apt update 2>/dev/null && sudo apt install -y insomnia 2>/dev/null && echo "✅ Insomnia installed" || echo "⚠️ Insomnia install failed"
-fi
 
 # Postman
 if [ ! -d "/opt/Postman" ]; then
@@ -176,17 +176,11 @@ if [ ! -d "/opt/Postman" ]; then
   fi
 fi
 
-# Requestly
-if [ ! -f /usr/bin/requestly ]; then
-  install_deb "Requestly" "https://github.com/requestly/requestly-desktop-app/releases/latest/download/requestly-desktop-app.deb"
-fi
-
-# AnyDesk
-if ! command -v anydesk >/dev/null 2>&1; then
-  echo "📥 Installing AnyDesk..."
-  wget -qO - https://keys.anydesk.com/repos/DEB-GPG-KEY 2>/dev/null | sudo gpg --dearmor -o /etc/apt/keyrings/anydesk.gpg 2>/dev/null
-  echo "deb [signed-by=/etc/apt/keyrings/anydesk.gpg] http://deb.anydesk.com/ all main" | sudo tee /etc/apt/sources.list.d/anydesk-stable.list > /dev/null
-  sudo apt update 2>/dev/null && sudo apt install -y anydesk 2>/dev/null && echo "✅ AnyDesk installed" || echo "⚠️ AnyDesk install failed"
+# Slack
+if ! command -v slack >/dev/null 2>&1; then
+  install_deb "Slack" "https://downloads.slack-edge.com/desktop-releases/linux/x64/latest/slack-desktop-amd64.deb"
+else
+  echo "✅ Slack already installed"
 fi
 
 # VLC
@@ -197,66 +191,10 @@ if ! command -v redisinsight >/dev/null 2>&1; then
   install_deb "RedisInsight" "https://github.com/redis/RedisInsight/releases/download/3.2.0/Redis-Insight-linux-amd64.deb"
 fi
 
-# =====================================================================
-# 4. JETBRAINS & SPECIALIZED IDEs
-# =====================================================================
-echo "💻 Installing JetBrains & IDEs..."
-
-# JetBrains Toolbox
-if [ ! -d "$HOME/.local/share/JetBrains/Toolbox" ]; then
-  echo "📥 Installing JetBrains Toolbox..."
-  TBOX_URL=$(curl -s 'https://data.services.jetbrains.com/products/releases?code=TBC&latest=true&type=release' 2>/dev/null | grep -Po '"linux":\{"link":"\K[^"]+' || echo "")
-  if [ ! -z "$TBOX_URL" ]; then
-    if wget -qO jetbrains-toolbox.tar.gz "$TBOX_URL" 2>/dev/null; then
-      mkdir -p jetbrains-toolbox
-      tar -xzf jetbrains-toolbox.tar.gz -C jetbrains-toolbox --strip-components=1 2>/dev/null
-      ./jetbrains-toolbox/jetbrains-toolbox --install 2>/dev/null
-      rm -rf jetbrains-toolbox.tar.gz jetbrains-toolbox
-      echo "✅ JetBrains Toolbox installed"
-    else
-      echo "⚠️ Failed to download JetBrains Toolbox"
-    fi
-  else
-    echo "⚠️ Could not find JetBrains Toolbox URL"
-  fi
-fi
-
-# Cursor
-if [ ! -f /usr/bin/cursor ]; then
-  install_deb "Cursor" "https://downloader.cursor.sh/linux/deb/x64"
-fi
-
-# Windsurf
-if [ ! -f /usr/bin/windsurf ]; then
-  echo "📥 Installing Windsurf..."
-  if wget -qO- "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg" 2>/dev/null | gpg --dearmor > windsurf-stable.gpg; then
-    sudo install -D -o root -g root -m 644 windsurf-stable.gpg /etc/apt/keyrings/windsurf-stable.gpg 2>/dev/null
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/windsurf-stable.gpg] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" | sudo tee /etc/apt/sources.list.d/windsurf.list > /dev/null
-    rm -f windsurf-stable.gpg
-    sudo apt update 2>/dev/null && sudo apt install -y windsurf 2>/dev/null && echo "✅ Windsurf installed" || echo "⚠️ Windsurf install failed"
-  else
-    echo "⚠️ Failed to setup Windsurf"
-  fi
-fi
-
-# Antigravity
-if [ ! -f /usr/bin/antigravity-ai ]; then
-  echo "📥 Installing Antigravity..."
-  if curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg 2>/dev/null | sudo gpg --dearmor --yes -o /etc/apt/keyrings/antigravity-repo-key.gpg 2>/dev/null; then
-    echo "deb [signed-by=/etc/apt/keyrings/antigravity-repo-key.gpg] https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/ antigravity-debian main" | sudo tee /etc/apt/sources.list.d/antigravity.list > /dev/null
-    sudo apt update 2>/dev/null && sudo apt install -y antigravity-ai 2>/dev/null && echo "✅ Antigravity installed" || echo "⚠️ Antigravity install failed"
-  else
-    echo "⚠️ Failed to setup Antigravity repository"
-  fi
-fi
-
 # Qoder
 if [ ! -f /usr/bin/qoder ]; then
   install_deb "Qoder" "https://download.qoder.com/release/latest/qoder_amd64.deb"
 fi
-
-# Zen Browser (AppImage)
-install_appimage "Zen" "https://github.com/zen-browser/desktop/releases/latest/download/zen-x86_64.AppImage"
 
 # =====================================================================
 # 5. TERMINALS
