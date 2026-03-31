@@ -144,6 +144,11 @@ else
   echo "✅ Brave already installed"
 fi
 
+# =====================================================================
+# 4. IDES
+# =====================================================================
+echo "🔧 Installing IDEs..."
+
 # VS Code
 if ! command -v code >/dev/null 2>&1; then
   wget -qO- https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null | gpg --dearmor > microsoft.gpg 2>/dev/null
@@ -155,6 +160,35 @@ if ! command -v code >/dev/null 2>&1; then
   fi
 else
   echo "✅ VS Code already installed"
+fi
+
+# Antigravity
+if ! command -v antigravity >/dev/null 2>&1; then
+  echo "🛰️ Installing Antigravity..."
+
+  sudo mkdir -p /etc/apt/keyrings
+
+  if curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg | \
+    sudo gpg --dearmor --yes -o /etc/apt/keyrings/antigravity-repo-key.gpg 2>/dev/null; then
+
+    echo "deb [signed-by=/etc/apt/keyrings/antigravity-repo-key.gpg] https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/ antigravity-debian main" | \
+      sudo tee /etc/apt/sources.list.d/antigravity.list > /dev/null
+
+    if sudo apt update 2>/dev/null && sudo apt install -y antigravity 2>/dev/null; then
+      echo "✅ Antigravity installed"
+    else
+      echo "⚠️ Antigravity install failed"
+    fi
+  else
+    echo "⚠️ Failed to add Antigravity repository key"
+  fi
+else
+  echo "✅ Antigravity already installed"
+fi
+
+# Qoder
+if [ ! -f /usr/bin/qoder ]; then
+  install_deb "Qoder" "https://download.qoder.com/release/latest/qoder_amd64.deb"
 fi
 
 # =====================================================================
@@ -183,18 +217,11 @@ else
   echo "✅ Slack already installed"
 fi
 
-# VLC
-sudo apt install -y vlc 2>/dev/null && echo "✅ VLC installed" || echo "⚠️ VLC install failed"
-
 # Redis Insight
 if ! command -v redisinsight >/dev/null 2>&1; then
   install_deb "RedisInsight" "https://github.com/redis/RedisInsight/releases/download/3.2.0/Redis-Insight-linux-amd64.deb"
 fi
 
-# Qoder
-if [ ! -f /usr/bin/qoder ]; then
-  install_deb "Qoder" "https://download.qoder.com/release/latest/qoder_amd64.deb"
-fi
 
 # =====================================================================
 # 5. TERMINALS
@@ -213,4 +240,30 @@ if ! command -v warp-terminal >/dev/null 2>&1; then
   else
     echo "⚠️ Failed to download Warp"
   fi
+fi
+
+
+# =====================================================================
+# 6. MEDIA & PRODUCTIVITY TOOLS
+# =====================================================================
+
+# VLC
+sudo apt install -y vlc 2>/dev/null && echo "✅ VLC installed" || echo "⚠️ VLC install failed"
+
+# AnyDesk
+if ! command -v anydesk >/dev/null 2>&1; then
+  echo "🖥️ Installing AnyDesk..."
+
+  wget -qO - https://keys.anydesk.com/repos/DEB-GPG-KEY | sudo gpg --dearmor -o /usr/share/keyrings/anydesk.gpg 2>/dev/null
+
+  echo "deb [signed-by=/usr/share/keyrings/anydesk.gpg] http://deb.anydesk.com/ all main" | \
+    sudo tee /etc/apt/sources.list.d/anydesk.list > /dev/null
+
+  if sudo apt update 2>/dev/null && sudo apt install -y anydesk 2>/dev/null; then
+    echo "✅ AnyDesk installed"
+  else
+    echo "⚠️ AnyDesk install failed"
+  fi
+else
+  echo "✅ AnyDesk already installed"
 fi
